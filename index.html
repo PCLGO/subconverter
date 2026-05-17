@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTT to LRC 批量转换器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background-color: #f1f5f9; }
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+
+        /* Drag-drop highlight */
+        .drop-zone.dragover {
+            border-color: #7c3aed !important;
+            background-color: #f5f3ff !important;
+        }
+
+        .file-item-enter {
+            animation: fadeIn 0.25s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .badge-pending { background-color: #fef3c7; color: #92400e; }
+        .badge-done    { background-color: #d1fae5; color: #065f46; }
+        .badge-error   { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="min-h-screen flex items-start justify-center p-4 pt-8">
+
+    <div id="app" class="w-full max-w-5xl bg-white rounded-xl shadow-2xl p-6 md:p-8">
+        <h1 class="text-3xl font-extrabold text-gray-800 mb-2 text-center">VTT 到 LRC 批量转换工具</h1>
+        <p class="text-gray-500 mb-6 text-center">批量上传 .vtt 文件，一键全部转换并打包下载。</p>
+
+        <!-- ===== 上传区域 ===== -->
+        <div id="dropZone"
+             class="drop-zone relative border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer
+                    hover:border-violet-400 hover:bg-violet-50/30 transition duration-150 mb-4">
+            <input type="file" id="fileInput" accept=".vtt" multiple
+                   class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+            <div class="pointer-events-none">
+                <svg class="mx-auto h-10 w-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                <p class="text-gray-600 font-medium">拖拽 .vtt 文件到此处，或点击选择</p>
+                <p class="text-gray-400 text-sm mt-1">支持批量选择多个文件</p>
+            </div>
+        </div>
+
+        <!-- ===== 操作栏 ===== -->
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <button id="convertAllBtn"
+                    class="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 rounded-lg shadow
+                           hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    disabled>🔄 全部转换</button>
+            <button id="downloadAllBtn"
+                    class="px-5 py-2.5 text-sm font-semibold text-white bg-violet-600 rounded-lg shadow
+                           hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    disabled>📦 打包下载全部 (.zip)</button>
+            <button id="clearBtn"
+                    class="px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg
+                           hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    disabled>🗑 清空列表</button>
+            <span id="fileCount" class="text-sm text-gray-400 ml-auto"></span>
+        </div>
+
+        <!-- ===== 文件列表 ===== -->
+        <div id="fileList" class="mb-6 max-h-64 overflow-y-auto custom-scrollbar space-y-1.5 hidden"></div>
+        <p id="emptyHint" class="text-center text-gray-400 text-sm mb-6">还没有添加任何文件</p>
+
+        <!-- ===== 预览区 ===== -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    VTT 原始内容
+                    <span id="previewName" class="text-sm font-normal text-gray-400"></span>
+                </h2>
+                <textarea id="vttInput" readonly rows="12"
+                          class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono custom-scrollbar resize-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="点击左侧文件列表中的文件查看 VTT 内容..."></textarea>
+            </div>
+            <div>
+                <h2 class="text-lg font-semibold text-gray-700 mb-2">LRC 转换结果</h2>
+                <textarea id="lrcOutput" readonly rows="12"
+                          class="w-full p-3 border border-gray-300 rounded-lg bg-yellow-50 text-sm font-mono custom-scrollbar resize-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="转换后的 LRC 将在此处显示..."></textarea>
+                <div id="errorMsg" class="mt-2 text-red-600 font-medium hidden"></div>
+            </div>
+        </div>
+
+        <!-- ===== 说明 ===== -->
+        <div class="mt-8 pt-6 border-t border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">说明</h3>
+            <ul class="list-disc list-inside space-y-1 text-gray-500 text-sm ml-4">
+                <li>VTT 时间戳 <code>HH:MM:SS.mmm</code> → LRC <code>[MM:SS.xx]</code></li>
+                <li>自动忽略 <code>WEBVTT</code> 头部和 cue 序号</li>
+                <li>多行字幕文本合并为一行</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // ── DOM refs ──
+            const dropZone      = document.getElementById('dropZone');
+            const fileInput     = document.getElementById('fileInput');
+            const fileList      = document.getElementById('fileList');
+            const emptyHint     = document.getElementById('emptyHint');
+            const fileCount     = document.getElementById('fileCount');
+            const convertAllBtn = document.getElementById('convertAllBtn');
+            const downloadAllBtn= document.getElementById('downloadAllBtn');
+            const clearBtn      = document.getElementById('clearBtn');
+            const vttInput      = document.getElementById('vttInput');
+            const lrcOutput     = document.getElementById('lrcOutput');
+            const errorMsg      = document.getElementById('errorMsg');
+            const previewName   = document.getElementById('previewName');
+
+            // ── State ──
+            let files = [];           // { id, name, vttContent, lrcContent, status: 'pending'|'done'|'error' }
+
+            // ── Core conversion ──
+            function convertVTTtoLRC(vttContent) {
+                const lines = vttContent.split(/\r?\n/);
+                const lrcLines = [];
+                let isCueText = false;
+                let currentTimestamp = '';
+                const timeRegex = new RegExp("(\\d{2}):(\\d{2}):(\\d{2})\\.(\\d{3})\\s*-->");
+
+                for (const line of lines) {
+                    const t = line.trim();
+                    if (t === 'WEBVTT' || t === '' || /^\d+$/.test(t)) continue;
+
+                    const m = t.match(timeRegex);
+                    if (m) {
+                        const mm = m[2], ss = m[3], xx = m[4].substring(0, 2);
+                        currentTimestamp = `[${mm}:${ss}.${xx}]`;
+                        isCueText = true;
+                    } else if (isCueText) {
+                        const text = t.replace(/<[^>]*>/g, '').trim();
+                        if (text) {
+                            lrcLines.push(currentTimestamp + text);
+                            isCueText = false;
+                        }
+                    }
+                }
+                return lrcLines.join('\n');
+            }
+
+            // ── Render file list ──
+            function renderFileList() {
+                fileList.innerHTML = '';
+                if (files.length === 0) {
+                    fileList.classList.add('hidden');
+                    emptyHint.classList.remove('hidden');
+                    fileCount.textContent = '';
+                    updateButtons();
+                    return;
+                }
+                fileList.classList.remove('hidden');
+                emptyHint.classList.add('hidden');
+                fileCount.textContent = `共 ${files.length} 个文件`;
+
+                files.forEach((f, idx) => {
+                    const badge = {
+                        pending: '<span class="badge-pending text-xs px-2 py-0.5 rounded-full">待转换</span>',
+                        done:    '<span class="badge-done    text-xs px-2 py-0.5 rounded-full">✓ 已转换</span>',
+                        error:   '<span class="badge-error   text-xs px-2 py-0.5 rounded-full">✗ 错误</span>',
+                    }[f.status];
+
+                    const div = document.createElement('div');
+                    div.className = 'file-item-enter flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition';
+                    div.innerHTML = `
+                        <span class="text-sm text-gray-500 w-6 shrink-0">${idx + 1}.</span>
+                        <svg class="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <span class="text-sm text-gray-700 truncate flex-1" title="${f.name}">${f.name}</span>
+                        ${badge}
+                        <button class="download-single px-2 py-1 text-xs font-medium text-violet-600 hover:text-violet-800 transition ${f.status === 'done' ? '' : 'opacity-30 cursor-not-allowed'}"
+                                ${f.status === 'done' ? '' : 'disabled'}
+                                data-id="${f.id}">下载</button>
+                        <button class="remove-file px-2 py-1 text-xs font-medium text-red-400 hover:text-red-600 transition" data-id="${f.id}">✕</button>
+                    `;
+                    // Click to preview
+                    div.addEventListener('click', (e) => {
+                        if (e.target.closest('button')) return;
+                        previewFile(f.id);
+                    });
+                    fileList.appendChild(div);
+                });
+
+                // Bind individual downloads
+                fileList.querySelectorAll('.download-single:not([disabled])').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const f = files.find(x => x.id === btn.dataset.id);
+                        if (f && f.lrcContent) downloadFile(f.lrcContent, f.name.replace(/\.vtt$/i, '.lrc'));
+                    });
+                });
+
+                // Bind removes
+                fileList.querySelectorAll('.remove-file').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const id = btn.dataset.id;
+                        files = files.filter(x => x.id !== id);
+                        if (previewName.dataset.currentId === id) {
+                            vttInput.value = '';
+                            lrcOutput.value = '';
+                            previewName.textContent = '';
+                            previewName.dataset.currentId = '';
+                        }
+                        renderFileList();
+                        updateButtons();
+                    });
+                });
+
+                updateButtons();
+            }
+
+            // ── Preview ──
+            function previewFile(id) {
+                const f = files.find(x => x.id === id);
+                if (!f) return;
+                previewName.textContent = `— ${f.name}`;
+                previewName.dataset.currentId = id;
+                vttInput.value = f.vttContent || '';
+                lrcOutput.value = f.lrcContent || '（尚未转换）';
+                errorMsg.classList.add('hidden');
+            }
+
+            // ── Add files ──
+            function addFiles(fileListObj) {
+                const added = [];
+                const readNext = (i) => {
+                    if (i >= fileListObj.length) {
+                        if (added.length) {
+                            files.push(...added);
+                            renderFileList();
+                            previewFile(added[0].id);
+                        }
+                        updateButtons();
+                        return;
+                    }
+                    const file = fileListObj[i];
+                    if (!file.name.toLowerCase().endsWith('.vtt')) {
+                        readNext(i + 1);
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        added.push({
+                            id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                            name: file.name,
+                            vttContent: e.target.result,
+                            lrcContent: null,
+                            status: 'pending',
+                        });
+                        readNext(i + 1);
+                    };
+                    reader.onerror = () => readNext(i + 1);
+                    reader.readAsText(file, 'utf-8');
+                };
+                readNext(0);
+            }
+
+            // ── Convert all ──
+            function convertAll() {
+                files.forEach(f => {
+                    if (f.status === 'done') return;
+                    try {
+                        f.lrcContent = convertVTTtoLRC(f.vttContent);
+                        f.status = 'done';
+                    } catch {
+                        f.status = 'error';
+                    }
+                });
+                renderFileList();
+                // Refresh preview if current
+                const curId = previewName.dataset.currentId;
+                if (curId) {
+                    const cur = files.find(x => x.id === curId);
+                    if (cur) previewFile(cur.id);
+                }
+                updateButtons();
+            }
+
+            // ── Download all as ZIP ──
+            async function downloadAllZip() {
+                const zip = new JSZip();
+                let count = 0;
+                files.forEach(f => {
+                    if (f.status === 'done' && f.lrcContent) {
+                        const lrcName = f.name.replace(/\.vtt$/i, '.lrc');
+                        zip.file(lrcName, f.lrcContent);
+                        count++;
+                    }
+                });
+                if (count === 0) return;
+                const blob = await zip.generateAsync({ type: 'blob' });
+                downloadFile(blob, 'lrc_files.zip', 'application/zip');
+            }
+
+            // ── Download helper ──
+            function downloadFile(content, fileName, mimeType) {
+                const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType || 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            // ── Update buttons ──
+            function updateButtons() {
+                const hasFiles = files.length > 0;
+                const hasPending = files.some(f => f.status === 'pending');
+                const hasDone = files.some(f => f.status === 'done');
+                convertAllBtn.disabled = !hasFiles || !hasPending;
+                downloadAllBtn.disabled = !hasDone;
+                clearBtn.disabled = !hasFiles;
+            }
+
+            // ── Events ──
+
+            // File input change
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files.length) addFiles(fileInput.files);
+                fileInput.value = '';
+            });
+
+            // Drag & drop
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+            });
+
+            // Convert all
+            convertAllBtn.addEventListener('click', convertAll);
+
+            // Download all ZIP
+            downloadAllBtn.addEventListener('click', downloadAllZip);
+
+            // Clear all
+            clearBtn.addEventListener('click', () => {
+                if (files.length === 0) return;
+                if (!confirm(`确定要清空 ${files.length} 个文件吗？`)) return;
+                files = [];
+                vttInput.value = '';
+                lrcOutput.value = '';
+                previewName.textContent = '';
+                previewName.dataset.currentId = '';
+                renderFileList();
+                updateButtons();
+            });
+
+            // Keyboard shortcut: Ctrl+Enter to convert all
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!convertAllBtn.disabled) convertAll();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
