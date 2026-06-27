@@ -45,20 +45,3 @@ Shortcut: `Ctrl+Enter` to convert all at once.
 Files with `.txt` extension are auto-detected by content (WEBVTT / Script Info / timestamp patterns).
 
 The UI auto-detects your browser language and can be toggled at top-right.
-
----
-
-## Test Files
-
-| File | Tests |
-|------|-------|
-| `sample.*` | Basic samples for all 6 formats |
-| `cue-id.vtt` | VTT cue identifiers |
-| `edge-vtt.vtt` | VTT NOTE / STYLE blocks |
-| `edge-srt.srt` | SRT with HTML tags |
-| `special.srt` | Unicode, emoji, special chars |
-| `arrow-sbv.sbv` | SBV arrow timestamps |
-| `style-comment.ass` | ASS multi-style + comments |
-| `multi-ts.lrc` | LRC multi-timestamp |
-| `word-lrc.lrc` | LRC word-level timestamps |
-| `sniff-*.txt` | Format sniffing |
