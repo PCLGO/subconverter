@@ -2,7 +2,7 @@
 
 > 通用字幕格式转换工具｜Universal Subtitle Converter
 
-**🔗 https://subconverter-delta-six.vercel.app/**
+**🔗 https://subconverter-kohl-ten.vercel.app/**
 
 ---
 
