@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VTT to LRC 批量转换器</title>
+    <title>通用字幕格式转换工具 (VTT/SRT/ASS/SSA/LRC/SBV)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
@@ -12,7 +12,6 @@
         .custom-scrollbar::-webkit-scrollbar-track { background-color: #f1f5f9; }
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
 
-        /* Drag-drop highlight */
         .drop-zone.dragover {
             border-color: #7c3aed !important;
             background-color: #f5f3ff !important;
@@ -29,351 +28,1131 @@
         .badge-pending { background-color: #fef3c7; color: #92400e; }
         .badge-done    { background-color: #d1fae5; color: #065f46; }
         .badge-error   { background-color: #fee2e2; color: #991b1b; }
+
+        .fmt-badge {
+            display: inline-block;
+            padding: 0 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            border-radius: 4px;
+            line-height: 1.4;
+        }
+        .fmt-vtt  { background: #dbeafe; color: #1e40af; }
+        .fmt-srt  { background: #d1fae5; color: #065f46; }
+        .fmt-ass  { background: #ede9fe; color: #5b21b6; }
+        .fmt-ssa  { background: #fce7f3; color: #9d174d; }
+        .fmt-lrc  { background: #fef3c7; color: #92400e; }
+        .fmt-sbv  { background: #e0e7ff; color: #3730a3; }
+
+        .tooltip {
+            position: relative;
+        }
+        .tooltip::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s;
+        }
+        .tooltip:hover::after {
+            opacity: 1;
+        }
+
+        .format-selector {
+            position: relative;
+        }
+        .format-selector select {
+            appearance: none;
+            -webkit-appearance: none;
+            padding-right: 2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.6rem center;
+        }
     </style>
 </head>
 <body class="min-h-screen flex items-start justify-center p-4 pt-8">
 
-    <div id="app" class="w-full max-w-5xl bg-white rounded-xl shadow-2xl p-6 md:p-8">
-        <h1 class="text-3xl font-extrabold text-gray-800 mb-2 text-center">VTT 到 LRC 批量转换工具</h1>
-        <p class="text-gray-500 mb-6 text-center">批量上传 .vtt 文件，一键全部转换并打包下载。</p>
+<div id="app" class="w-full max-w-5xl bg-white rounded-xl shadow-2xl p-6 md:p-8">
+    <h1 class="text-3xl font-extrabold text-gray-800 mb-1 text-center">通用字幕格式转换工具</h1>
+    <p class="text-gray-500 mb-5 text-center text-sm">
+        批量转换 <strong>VTT · SRT · ASS · SSA · LRC · SBV</strong> 任意互转，一键打包下载
+    </p>
 
-        <!-- ===== 上传区域 ===== -->
-        <div id="dropZone"
-             class="drop-zone relative border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer
-                    hover:border-violet-400 hover:bg-violet-50/30 transition duration-150 mb-4">
-            <input type="file" id="fileInput" accept=".vtt" multiple
-                   class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-            <div class="pointer-events-none">
-                <svg class="mx-auto h-10 w-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                </svg>
-                <p class="text-gray-600 font-medium">拖拽 .vtt 文件到此处，或点击选择</p>
-                <p class="text-gray-400 text-sm mt-1">支持批量选择多个文件</p>
-            </div>
-        </div>
-
-        <!-- ===== 操作栏 ===== -->
-        <div class="flex flex-wrap items-center gap-3 mb-4">
-            <button id="convertAllBtn"
-                    class="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 rounded-lg shadow
-                           hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                    disabled>🔄 全部转换</button>
-            <button id="downloadAllBtn"
-                    class="px-5 py-2.5 text-sm font-semibold text-white bg-violet-600 rounded-lg shadow
-                           hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                    disabled>📦 打包下载全部 (.zip)</button>
-            <button id="clearBtn"
-                    class="px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg
-                           hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                    disabled>🗑 清空列表</button>
-            <span id="fileCount" class="text-sm text-gray-400 ml-auto"></span>
-        </div>
-
-        <!-- ===== 文件列表 ===== -->
-        <div id="fileList" class="mb-6 max-h-64 overflow-y-auto custom-scrollbar space-y-1.5 hidden"></div>
-        <p id="emptyHint" class="text-center text-gray-400 text-sm mb-6">还没有添加任何文件</p>
-
-        <!-- ===== 预览区 ===== -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <h2 class="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                    VTT 原始内容
-                    <span id="previewName" class="text-sm font-normal text-gray-400"></span>
-                </h2>
-                <textarea id="vttInput" readonly rows="12"
-                          class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono custom-scrollbar resize-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="点击左侧文件列表中的文件查看 VTT 内容..."></textarea>
-            </div>
-            <div>
-                <h2 class="text-lg font-semibold text-gray-700 mb-2">LRC 转换结果</h2>
-                <textarea id="lrcOutput" readonly rows="12"
-                          class="w-full p-3 border border-gray-300 rounded-lg bg-yellow-50 text-sm font-mono custom-scrollbar resize-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="转换后的 LRC 将在此处显示..."></textarea>
-                <div id="errorMsg" class="mt-2 text-red-600 font-medium hidden"></div>
-            </div>
-        </div>
-
-        <!-- ===== 说明 ===== -->
-        <div class="mt-8 pt-6 border-t border-gray-200">
-            <h3 class="text-lg font-semibold text-gray-700 mb-2">说明</h3>
-            <ul class="list-disc list-inside space-y-1 text-gray-500 text-sm ml-4">
-                <li>VTT 时间戳 <code>HH:MM:SS.mmm</code> → LRC <code>[MM:SS.xx]</code></li>
-                <li>自动忽略 <code>WEBVTT</code> 头部和 cue 序号</li>
-                <li>多行字幕文本合并为一行</li>
-            </ul>
+    <!-- ===== 上传区域 ===== -->
+    <div id="dropZone"
+         class="drop-zone relative border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer
+                hover:border-violet-400 hover:bg-violet-50/30 transition duration-150 mb-3">
+        <input type="file" id="fileInput"
+               accept=".vtt,.srt,.ass,.ssa,.lrc,.sbv,.txt"
+               multiple
+               class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+        <div class="pointer-events-none">
+            <svg class="mx-auto h-9 w-9 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            <p class="text-gray-600 font-medium">拖拽字幕文件到此处，或点击选择</p>
+            <p class="text-gray-400 text-sm mt-1">支持 VTT · SRT · ASS · SSA · LRC · SBV 格式，可多选</p>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
+    <!-- ===== 操作栏 ===== -->
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+        <!-- 输出格式选择 -->
+        <div class="format-selector flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+            <label for="outputFormat" class="text-sm text-gray-600 font-medium whitespace-nowrap">输出格式：</label>
+            <select id="outputFormat"
+                    class="text-sm font-semibold text-gray-800 bg-transparent border-0 outline-none cursor-pointer pr-7 py-0.5">
+                <option value="lrc">LRC (<small>歌词</small>)</option>
+                <option value="srt">SRT (SubRip)</option>
+                <option value="vtt">VTT (WebVTT)</option>
+                <option value="ass">ASS (高级字幕)</option>
+                <option value="ssa">SSA (SubStation)</option>
+                <option value="sbv">SBV (YouTube)</option>
+            </select>
+        </div>
 
-            // ── DOM refs ──
-            const dropZone      = document.getElementById('dropZone');
-            const fileInput     = document.getElementById('fileInput');
-            const fileList      = document.getElementById('fileList');
-            const emptyHint     = document.getElementById('emptyHint');
-            const fileCount     = document.getElementById('fileCount');
-            const convertAllBtn = document.getElementById('convertAllBtn');
-            const downloadAllBtn= document.getElementById('downloadAllBtn');
-            const clearBtn      = document.getElementById('clearBtn');
-            const vttInput      = document.getElementById('vttInput');
-            const lrcOutput     = document.getElementById('lrcOutput');
-            const errorMsg      = document.getElementById('errorMsg');
-            const previewName   = document.getElementById('previewName');
+        <button id="convertAllBtn"
+                class="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 rounded-lg shadow
+                       hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                disabled>🔄 全部转换</button>
+        <button id="downloadAllBtn"
+                class="px-5 py-2.5 text-sm font-semibold text-white bg-violet-600 rounded-lg shadow
+                       hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                disabled>📦 打包下载 (.zip)</button>
+        <button id="clearBtn"
+                class="px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg
+                       hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                disabled>🗑 清空列表</button>
+        <span id="fileCount" class="text-sm text-gray-400 ml-auto"></span>
+    </div>
 
-            // ── State ──
-            let files = [];           // { id, name, vttContent, lrcContent, status: 'pending'|'done'|'error' }
+    <!-- ===== 文件列表 ===== -->
+    <div id="fileList" class="mb-5 max-h-64 overflow-y-auto custom-scrollbar space-y-1 hidden"></div>
+    <p id="emptyHint" class="text-center text-gray-400 text-sm mb-5">还没有添加任何文件</p>
 
-            // ── Core conversion ──
-            function convertVTTtoLRC(vttContent) {
-                const lines = vttContent.split(/\r?\n/);
-                const lrcLines = [];
-                let isCueText = false;
-                let currentTimestamp = '';
-                const timeRegex = new RegExp("(\\d{2}):(\\d{2}):(\\d{2})\\.(\\d{3})\\s*-->");
+    <!-- ===== 预览区 ===== -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <span>字幕原文</span>
+                <span id="sourceLabel" class="text-xs font-normal text-gray-400"></span>
+                <span id="previewName" class="text-sm font-normal text-gray-400 truncate"></span>
+            </h2>
+            <textarea id="subInput" readonly rows="12"
+                      class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono custom-scrollbar resize-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="点击文件列表中的文件查看字幕内容..."></textarea>
+        </div>
+        <div>
+            <h2 class="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <span>转换结果</span>
+                <span id="outputLabel" class="text-xs font-normal text-gray-400"></span>
+            </h2>
+            <textarea id="lrcOutput" readonly rows="12"
+                      class="w-full p-3 border border-gray-300 rounded-lg bg-yellow-50 text-sm font-mono custom-scrollbar resize-none focus:ring-2 focus:ring-yellow-500"
+                      placeholder="转换后的内容将在此处显示..."></textarea>
+            <div id="errorMsg" class="mt-2 text-red-600 font-medium text-sm hidden"></div>
+        </div>
+    </div>
 
-                for (const line of lines) {
-                    const t = line.trim();
-                    if (t === 'WEBVTT' || t === '' || /^\d+$/.test(t)) continue;
+    <!-- ===== 说明 ===== -->
+    <div class="mt-8 pt-6 border-t border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-700 mb-2">说明</h3>
+        <ul class="list-disc list-inside space-y-1 text-gray-500 text-sm ml-4">
+            <li><strong>支持格式</strong>：输入 VTT · SRT · ASS · SSA · LRC · SBV，输出 LRC · SRT · VTT · ASS · SSA · SBV，任意互转</li>
+            <li><strong>批量处理</strong>：同时添加多文件，选择输出格式，一键全部转换 + ZIP 打包下载</li>
+            <li><strong>格式检测</strong>：基于文件扩展名自动识别输入格式（.vtt / .srt / .ass / .ssa / .lrc / .sbv）</li>
+            <li><strong>时间戳</strong>：所有格式自动归一化处理，标准 LRC <code>[MM:SS.xx]</code> / SRT <code>HH:MM:SS,mmm</code></li>
+            <li><strong>快捷键</strong>：<kbd>Ctrl+Enter</kbd> 快速全部转换</li>
+        </ul>
+    </div>
+</div>
 
-                    const m = t.match(timeRegex);
-                    if (m) {
-                        const mm = m[2], ss = m[3], xx = m[4].substring(0, 2);
-                        currentTimestamp = `[${mm}:${ss}.${xx}]`;
-                        isCueText = true;
-                    } else if (isCueText) {
-                        const text = t.replace(/<[^>]*>/g, '').trim();
-                        if (text) {
-                            lrcLines.push(currentTimestamp + text);
-                            isCueText = false;
-                        }
-                    }
-                }
-                return lrcLines.join('\n');
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // ─── DOM refs ────────────────────────────────────────────────────────
+    const dropZone       = document.getElementById('dropZone');
+    const fileInput      = document.getElementById('fileInput');
+    const fileListEl     = document.getElementById('fileList');
+    const emptyHint      = document.getElementById('emptyHint');
+    const fileCount      = document.getElementById('fileCount');
+    const outputFmt      = document.getElementById('outputFormat');
+    const convertAllBtn  = document.getElementById('convertAllBtn');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const clearBtn       = document.getElementById('clearBtn');
+    const subInput       = document.getElementById('subInput');
+    const lrcOutput      = document.getElementById('lrcOutput');
+    const errorMsg       = document.getElementById('errorMsg');
+    const previewName    = document.getElementById('previewName');
+    const sourceLabel    = document.getElementById('sourceLabel');
+    const outputLabel    = document.getElementById('outputLabel');
+
+    // ─── State ───────────────────────────────────────────────────────────
+    let files = []; // { id, name, sourceContent, sourceFormat, outputContent, outputFormat, status }
+
+    const FORMAT_NAMES = {
+        vtt: 'VTT', srt: 'SRT', ass: 'ASS', ssa: 'SSA', lrc: 'LRC', sbv: 'SBV',
+    };
+
+    const FMT_BADGE_CLASS = { vtt: 'fmt-vtt', srt: 'fmt-srt', ass: 'fmt-ass', ssa: 'fmt-ssa', lrc: 'fmt-lrc', sbv: 'fmt-sbv' };
+
+    // ====================================================================
+    //  CONVERSION ENGINE — Intermediate:  cues[] = { start, end, text }
+    //    start/end: milliseconds;  text: plain text (formatting stripped)
+    // ====================================================================
+
+    // ─── Util ────────────────────────────────────────────────────────────
+
+    /** hms → ms. Accepts "HH:MM:SS.mmm", "H:MM:SS.cc", or "MM:SS.xx" */
+    function timeToMs(str) {
+        str = str.trim().replace(/,/g, '.');
+        const parts = str.split(':');
+        if (parts.length === 2) {
+            const mm = parseFloat(parts[0]);
+            const ss = parseFloat(parts[1]);
+            return (mm * 60 + ss) * 1000;
+        }
+        if (parts.length === 3) {
+            const hh = parseFloat(parts[0]);
+            const mm = parseFloat(parts[1]);
+            const ss = parseFloat(parts[2]);
+            return (hh * 3600 + mm * 60 + ss) * 1000;
+        }
+        return 0;
+    }
+
+    /** ms → MM:SS.xx (LRC format) */
+    function msToLRCTime(ms) {
+        const totalSec = Math.max(0, Math.round(ms / 10) / 100);
+        const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+        const ss = String(Math.floor(totalSec % 60)).padStart(2, '0');
+        const xx = String(Math.floor((totalSec % 1) * 100)).padStart(2, '0');
+        return `${mm}:${ss}.${xx}`;
+    }
+
+    /** ms → HH:MM:SS.mmm */
+    function msToStandardTime(ms, decimalSep) {
+        const totalMs = Math.max(0, Math.round(ms));
+        const hh = String(Math.floor(totalMs / 3600000)).padStart(2, '0');
+        const mm = String(Math.floor((totalMs % 3600000) / 60000)).padStart(2, '0');
+        const ss = String(Math.floor((totalMs % 60000) / 1000)).padStart(2, '0');
+        const mmm = String(totalMs % 1000).padStart(3, '0');
+        return `${hh}:${mm}:${ss}${decimalSep}${mmm}`;
+    }
+
+    /** ms → H:MM:SS.cc (ASS centiseconds) */
+    function msToASSTime(ms) {
+        const totalMs = Math.max(0, Math.round(ms));
+        const h  = String(Math.floor(totalMs / 3600000));
+        const mm = String(Math.floor((totalMs % 3600000) / 60000)).padStart(2, '0');
+        const ss = String(Math.floor((totalMs % 60000) / 1000)).padStart(2, '0');
+        const cc = String(Math.floor((totalMs % 1000) / 10)).padStart(2, '0');
+        return `${h}:${mm}:${ss}.${cc}`;
+    }
+
+    /** ms → H:MM:SS.mmm (SBV format: single-digit hour) */
+    function msToSBVTime(ms) {
+        const totalMs = Math.max(0, Math.round(ms));
+        const h  = String(Math.floor(totalMs / 3600000));
+        const mm = String(Math.floor((totalMs % 3600000) / 60000)).padStart(2, '0');
+        const ss = String(Math.floor((totalMs % 60000) / 1000)).padStart(2, '0');
+        const mmm = String(totalMs % 1000).padStart(3, '0');
+        return `${h}:${mm}:${ss}.${mmm}`;
+    }
+
+    /** Strip HTML/VTT tags (<b>, <i>, <c>, <v>, etc.) */
+    function stripHTMLTags(text) {
+        return text.replace(/<[^>]*>/g, '').trim();
+    }
+
+    /** Strip ASS/SSA override tags ({...}) and special chars */
+    function stripASSTags(text) {
+        return text
+            .replace(/\{[^}]*\}/g, '')      // {\b1}, {\i0}, ...
+            .replace(/\\N/gi, '\n')          // \N → newline
+            .replace(/\\n/gi, '\n')           // \n → newline (lowercase variant)
+            .replace(/\\h/gi, ' ')            // \h → space
+            .replace(/\\(?!\n)/g, '')         // stray backslashes
+            .trim();
+    }
+
+    // ─── Parser: VTT ────────────────────────────────────────────────────
+
+    function parseVTT(content) {
+        const lines = content.split(/\r?\n/);
+        const cues = [];
+        let i = 0;
+
+        // Skip WEBVTT header and optional metadata
+        while (i < lines.length) {
+            const t = lines[i].trim();
+            i++;
+            if (t === '' || t === 'WEBVTT' || t.startsWith('WEBVTT')) continue;
+            if (t.startsWith('NOTE') || t.startsWith('STYLE') || t.startsWith('REGION')) {
+                // Skip NOTE/STYLE/REGION blocks
+                while (i < lines.length && lines[i].trim() !== '') i++;
+                continue;
+            }
+            // Check if this line is a timestamp
+            if (/-->/.test(t)) {
+                i--; // back up to parse cue
+                break;
+            }
+            // If it's not a known header and not empty, it might be a cue identifier — wait for timestamp
+            if (!/-->/.test(t)) continue;
+            break;
+        }
+
+        while (i < lines.length) {
+            // Skip empty lines and optional cue ID
+            let t = lines[i].trim();
+            i++;
+            if (t === '') continue;
+            // Could be a cue identifier (non-numeric string or number)
+            // Try next line for timestamp
+            if (!/-->/.test(t)) {
+                // This is a cue ID; skip it, next line should be timestamp
+                if (i < lines.length) t = lines[i].trim();
+                i++;
             }
 
-            // ── Render file list ──
-            function renderFileList() {
-                fileList.innerHTML = '';
-                if (files.length === 0) {
-                    fileList.classList.add('hidden');
-                    emptyHint.classList.remove('hidden');
-                    fileCount.textContent = '';
-                    updateButtons();
-                    return;
+            if (!/-->/.test(t)) continue;
+
+            // Parse timestamps
+            const parts = t.split('-->');
+            const startStr = parts[0].trim();
+            const endStr   = parts[1].trim();
+            const start = timeToMs(startStr);
+            const end   = timeToMs(endStr);
+
+            // Collect cue text
+            const textLines = [];
+            while (i < lines.length) {
+                const line = lines[i].trim();
+                i++;
+                if (line === '') break;
+                textLines.push(stripHTMLTags(line));
+            }
+
+            const text = textLines.join(' ').replace(/\s+/g, ' ').trim();
+            if (text) {
+                cues.push({ start, end, text });
+            }
+        }
+        return cues;
+    }
+
+    // ─── Parser: SRT ────────────────────────────────────────────────────
+
+    function parseSRT(content) {
+        const lines = content.split(/\r?\n/);
+        const cues = [];
+        let i = 0;
+
+        while (i < lines.length) {
+            let t = lines[i].trim();
+            i++;
+
+            // Skip empty lines and cue numbers
+            if (t === '' || /^\d+$/.test(t)) continue;
+
+            // Look for timestamp line
+            if (!/-->/.test(t)) continue;
+
+            const parts = t.split('-->');
+            const startStr = parts[0].trim();
+            const endStr   = parts[1].trim();
+            const start = timeToMs(startStr);
+            const end   = timeToMs(endStr);
+
+            // Collect text
+            const textLines = [];
+            while (i < lines.length) {
+                const line = lines[i].trim();
+                i++;
+                if (line === '') break;
+                textLines.push(stripHTMLTags(line));
+            }
+
+            const text = textLines.join(' ').replace(/\s+/g, ' ').trim();
+            if (text) {
+                cues.push({ start, end, text });
+            }
+        }
+        return cues;
+    }
+
+    // ─── Parser: ASS / SSA ──────────────────────────────────────────────
+
+    function parseASS(content) {
+        const lines = content.split(/\r?\n/);
+        const cues = [];
+        let inEvents = false;
+        let formatLine = null;
+
+        for (let i = 0; i < lines.length; i++) {
+            const t = lines[i].trim();
+
+            if (/^\[Events\]/i.test(t)) {
+                inEvents = true;
+                continue;
+            }
+            if (/^\[/.test(t) && inEvents) {
+                inEvents = false;
+                continue;
+            }
+            if (!inEvents) continue;
+
+            if (/^Format:/i.test(t)) {
+                formatLine = t.slice(7).split(',').map(s => s.trim().toLowerCase());
+                continue;
+            }
+            if (/^Dialogue:/i.test(t)) {
+                if (!formatLine) continue;
+
+                // Parse the dialogue line respecting commas inside tags
+                // Simple approach: split by comma, but ASS text field is the last field and may contain commas
+                const raw = t.slice(9); // after "Dialogue: "
+                const fields = splitASSDialogue(raw, formatLine.length);
+
+                // Get field indices
+                const startIdx = formatLine.indexOf('start');
+                const endIdx   = formatLine.indexOf('end');
+                const textIdx  = formatLine.indexOf('text');
+
+                if (startIdx === -1 || endIdx === -1 || textIdx === -1) continue;
+
+                const start = timeToMs(fields[startIdx] || '0');
+                const end   = timeToMs(fields[endIdx] || '0');
+                const rawText = (fields[textIdx] || '').trim();
+
+                // Strip override tags and convert \N to newline
+                const text = stripASSTags(rawText).replace(/\s+/g, ' ').trim();
+                if (text) {
+                    cues.push({ start, end, text });
                 }
-                fileList.classList.remove('hidden');
-                emptyHint.classList.add('hidden');
-                fileCount.textContent = `共 ${files.length} 个文件`;
+            }
+        }
+        return cues;
+    }
 
-                files.forEach((f, idx) => {
-                    const badge = {
-                        pending: '<span class="badge-pending text-xs px-2 py-0.5 rounded-full">待转换</span>',
-                        done:    '<span class="badge-done    text-xs px-2 py-0.5 rounded-full">✓ 已转换</span>',
-                        error:   '<span class="badge-error   text-xs px-2 py-0.5 rounded-full">✗ 错误</span>',
-                    }[f.status];
+    /** Split ASS Dialogue text respecting that the last field (Text) can contain commas */
+    function splitASSDialogue(raw, fieldCount) {
+        const result = [];
+        let current = '';
+        let depth = 0; // brace depth for override tags
+        let i = 0;
 
-                    const div = document.createElement('div');
-                    div.className = 'file-item-enter flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition';
-                    div.innerHTML = `
-                        <span class="text-sm text-gray-500 w-6 shrink-0">${idx + 1}.</span>
-                        <svg class="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                        </svg>
-                        <span class="text-sm text-gray-700 truncate flex-1" title="${f.name}">${f.name}</span>
-                        ${badge}
-                        <button class="download-single px-2 py-1 text-xs font-medium text-violet-600 hover:text-violet-800 transition ${f.status === 'done' ? '' : 'opacity-30 cursor-not-allowed'}"
-                                ${f.status === 'done' ? '' : 'disabled'}
-                                data-id="${f.id}">下载</button>
-                        <button class="remove-file px-2 py-1 text-xs font-medium text-red-400 hover:text-red-600 transition" data-id="${f.id}">✕</button>
-                    `;
-                    // Click to preview
-                    div.addEventListener('click', (e) => {
-                        if (e.target.closest('button')) return;
-                        previewFile(f.id);
-                    });
-                    fileList.appendChild(div);
+        while (i < raw.length) {
+            const ch = raw[i];
+            if (ch === '{') depth++;
+            if (ch === '}') depth = Math.max(0, depth - 1);
+            if (ch === ',' && depth === 0) {
+                result.push(current.trim());
+                current = '';
+                if (result.length === fieldCount - 1) {
+                    // Remaining is all text field
+                    result.push(raw.slice(i + 1).trim());
+                    return result;
+                }
+            } else {
+                current += ch;
+            }
+            i++;
+        }
+        result.push(current.trim());
+        return result;
+    }
+
+    // ─── Parser: LRC ────────────────────────────────────────────────────
+
+    function parseLRC(content) {
+        const lines = content.split(/\r?\n/);
+        const cues = [];
+        // Matches [MM:SS.xx] or [MM:SS.xxx]
+        const tsRegex = /\[(\d{2}):(\d{2})[\.:](\d{2,3})\]/g;
+
+        for (const line of lines) {
+            const t = line.trim();
+            if (!t) continue;
+
+            // Check for metadata tags like [ti:...], [ar:...] - skip them
+            if (/^\[(ti|ar|al|by|offset|re|length):/i.test(t)) continue;
+
+            // Collect all timestamps and text
+            const matches = [...t.matchAll(tsRegex)];
+            if (matches.length === 0) continue;
+
+            // Extract text (after last timestamp)
+            let text = t;
+            for (const m of matches) {
+                text = text.replace(m[0], '');
+            }
+            text = text.trim();
+            if (!text) continue;
+
+            // Handle word-by-word LRC: extract words with their own timestamps
+            // <MM:SS.xx>word — merge into one cue per line with start=first ts
+            const wordRegex = /<(\d{2}:\d{2}[\.:]\d{2,3})>/g;
+            const hasWords = wordRegex.test(text);
+
+            if (hasWords) {
+                // Strip inline timestamps for the text
+                const cleanText = text.replace(/<\d{2}:\d{2}[\.:]\d{2,3}>/g, '').trim();
+                // Use the first timestamp from the brackets
+                const firstMatch = matches[0];
+                const mm = parseInt(firstMatch[1], 10);
+                const ss = parseInt(firstMatch[2], 10);
+                const msPart = firstMatch[3].padEnd(3, '0').slice(0, 3);
+                const start = (mm * 60 + ss) * 1000 + parseInt(msPart, 10);
+                const end = start + 5000;
+                if (cleanText) cues.push({ start, end, text: cleanText });
+            } else {
+                // Standard LRC: one timestamp per line
+                for (const m of matches) {
+                    const mm = parseInt(m[1], 10);
+                    const ss = parseInt(m[2], 10);
+                    const msPart = m[3].padEnd(3, '0').slice(0, 3);
+                    const start = (mm * 60 + ss) * 1000 + parseInt(msPart, 10);
+                    const end = start + 5000;
+                    cues.push({ start, end, text });
+                }
+            }
+        }
+
+        // Sort by start time
+        cues.sort((a, b) => a.start - b.start);
+
+        // Fill end times: each cue ends when next cue starts
+        for (let i = 0; i < cues.length - 1; i++) {
+            if (cues[i].end === cues[i].start + 5000 || cues[i].end <= cues[i].start) {
+                cues[i].end = Math.min(cues[i].end, cues[i + 1].start);
+            }
+        }
+
+        return cues;
+    }
+
+    // ─── Parser: SBV (YouTube) ──────────────────────────────────────────
+
+    function parseSBV(content) {
+        const lines = content.split(/\r?\n/);
+        const cues = [];
+        let i = 0;
+
+        while (i < lines.length) {
+            const t = lines[i].trim();
+            i++;
+            if (t === '') continue;
+
+            // SBV: start,end  (no arrow; comma separated)
+            //   0:00:01.000,0:00:04.000
+            // or sometimes with arrow: 0:00:01.000 --> 0:00:04.000
+            // Also handle VTT-style arrow for safety
+            let startStr, endStr;
+
+            if (/-->/.test(t)) {
+                const parts = t.split('-->');
+                startStr = parts[0].trim();
+                endStr   = parts[1].trim();
+            } else {
+                const commaIdx = t.indexOf(',');
+                if (commaIdx === -1) continue;
+                startStr = t.slice(0, commaIdx).trim();
+                endStr   = t.slice(commaIdx + 1).trim();
+            }
+
+            const start = timeToMs(startStr);
+            const end   = timeToMs(endStr);
+
+            const textLines = [];
+            while (i < lines.length) {
+                const line = lines[i].trim();
+                i++;
+                if (line === '') break;
+                textLines.push(stripHTMLTags(line));
+            }
+
+            const text = textLines.join(' ').replace(/\s+/g, ' ').trim();
+            if (text) {
+                cues.push({ start, end, text });
+            }
+        }
+        return cues;
+    }
+
+    // ─── Generator: LRC ─────────────────────────────────────────────────
+
+    function generateLRC(cues) {
+        return cues.map(c => {
+            const ts = msToLRCTime(c.start);
+            return `[${ts}]${c.text}`;
+        }).join('\n') + '\n';
+    }
+
+    // ─── Generator: SRT ─────────────────────────────────────────────────
+
+    function generateSRT(cues) {
+        return cues.map((c, i) => {
+            const start = msToStandardTime(c.start, ',');
+            const end   = msToStandardTime(c.end, ',');
+            return `${i + 1}\n${start} --> ${end}\n${c.text}\n`;
+        }).join('\n');
+    }
+
+    // ─── Generator: VTT ─────────────────────────────────────────────────
+
+    function generateVTT(cues) {
+        const header = 'WEBVTT\n\n';
+        return header + cues.map(c => {
+            const start = msToStandardTime(c.start, '.');
+            const end   = msToStandardTime(c.end, '.');
+            return `${start} --> ${end}\n${c.text}`;
+        }).join('\n\n') + '\n';
+    }
+
+    // ─── Generator: ASS ─────────────────────────────────────────────────
+
+    function generateASS(cues) {
+        const header = `[Script Info]
+Title: Converted from subtitle
+ScriptType: v4.00+
+Collisions: Normal
+PlayResX: 384
+PlayResY: 288
+Timer: 100.0000
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+        const events = cues.map(c => {
+            const start = msToASSTime(c.start);
+            const end   = msToASSTime(c.end);
+            // Escape newlines in text as \N for ASS
+            const text = c.text.replace(/\n/g, '\\N');
+            return `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`;
+        }).join('\n');
+        return header + events + '\n';
+    }
+
+    // ─── Generator: SSA ─────────────────────────────────────────────────
+
+    function generateSSA(cues) {
+        // SSA is very similar to ASS but with v4.00 (not v4.00+)
+        const header = `[Script Info]
+Title: Converted from subtitle
+ScriptType: v4.00
+Collisions: Normal
+PlayResX: 384
+PlayResY: 288
+Timer: 100.0000
+
+[V4 Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, TertiaryColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, AlphaLevel, Encoding
+Style: Default,Arial,20,65535,65535,65535,-2147483640,-1,0,1,2,2,2,10,10,10,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+        const events = cues.map(c => {
+            const start = msToASSTime(c.start);
+            const end   = msToASSTime(c.end);
+            const text = c.text.replace(/\n/g, '\\N');
+            return `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`;
+        }).join('\n');
+        return header + events + '\n';
+    }
+
+    // ─── Generator: SBV ─────────────────────────────────────────────────
+
+    function generateSBV(cues) {
+        return cues.map(c => {
+            const start = msToSBVTime(c.start);
+            const end   = msToSBVTime(c.end);
+            return `${start},${end}\n${c.text}`;
+        }).join('\n\n') + '\n';
+    }
+
+    const EXT_TO_FORMAT = {
+        vtt: 'vtt', srt: 'srt', ass: 'ass', ssa: 'ssa', lrc: 'lrc', sbv: 'sbv',
+    };
+
+    // ─── Main conversion dispatcher ─────────────────────────────────────
+
+    const PARSERS = {
+        vtt: parseVTT,
+        srt: parseSRT,
+        ass: parseASS,
+        ssa: parseASS,   // SSA uses same parser as ASS
+        lrc: parseLRC,
+        sbv: parseSBV,
+    };
+
+    const GENERATORS = {
+        lrc: generateLRC,
+        srt: generateSRT,
+        vtt: generateVTT,
+        ass: generateASS,
+        ssa: generateSSA,
+        sbv: generateSBV,
+    };
+
+    function convertToFormat(content, sourceFormat, targetFormat) {
+        // Validate
+        if (!PARSERS[sourceFormat]) throw new Error(`不支持的输入格式: ${sourceFormat}`);
+        if (!GENERATORS[targetFormat]) throw new Error(`不支持的输出格式: ${targetFormat}`);
+
+        // Parse
+        const cues = PARSERS[sourceFormat](content);
+
+        // Generate
+        return GENERATORS[targetFormat](cues);
+    }
+
+    // ====================================================================
+    //  UI LAYER
+    // ====================================================================
+
+    // ─── Render file list ───────────────────────────────────────────────
+
+    function renderFileList() {
+        fileListEl.innerHTML = '';
+        if (files.length === 0) {
+            fileListEl.classList.add('hidden');
+            emptyHint.classList.remove('hidden');
+            fileCount.textContent = '';
+            updateButtons();
+            return;
+        }
+        fileListEl.classList.remove('hidden');
+        emptyHint.classList.add('hidden');
+        fileCount.textContent = `共 ${files.length} 个文件`;
+
+        files.forEach((f, idx) => {
+            const fmt = f.sourceFormat ? FORMAT_NAMES[f.sourceFormat] || f.sourceFormat.toUpperCase() : '';
+            const fmtClass = FMT_BADGE_CLASS[f.sourceFormat] || '';
+
+            const statusHtml = (() => {
+                switch (f.status) {
+                    case 'pending': return '<span class="badge-pending text-xs px-2 py-0.5 rounded-full">待转换</span>';
+                    case 'done':    return '<span class="badge-done    text-xs px-2 py-0.5 rounded-full">✓ 已转换</span>';
+                    case 'error':   return '<span class="badge-error   text-xs px-2 py-0.5 rounded-full">✗ 错误</span>';
+                    default:        return '';
+                }
+            })();
+
+            const outputExt = f.status === 'done' ? ('.' + (f.outputFormat || 'lrc')) : '';
+
+            const div = document.createElement('div');
+            div.className = 'file-item-enter flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition';
+            div.innerHTML = `
+                <span class="text-sm text-gray-500 w-5 shrink-0 text-right">${idx + 1}.</span>
+                <svg class="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                ${fmt ? `<span class="fmt-badge ${fmtClass} shrink-0">${fmt}</span>` : ''}
+                <span class="text-sm text-gray-700 truncate flex-1" title="${f.name}">${f.name}</span>
+                ${statusHtml}
+                <button class="convert-single px-2.5 py-1 text-xs font-medium text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition
+                              ${f.status !== 'done' ? '' : 'opacity-0 pointer-events-none'}"
+                        data-id="${f.id}" title="转换此文件">转换</button>
+                <button class="download-single px-2.5 py-1 text-xs font-medium text-violet-600 hover:text-violet-800 hover:bg-violet-50 rounded transition
+                              ${f.status === 'done' ? '' : 'hidden'}"
+                        data-id="${f.id}" title="下载 ${outputExt}">下载</button>
+                <button class="remove-file px-2 py-1 text-xs font-medium text-red-400 hover:text-red-600 rounded hover:bg-red-50 transition" data-id="${f.id}" title="移除此文件">✕</button>
+            `;
+
+            // Click to preview
+            div.addEventListener('click', (e) => {
+                if (e.target.closest('button')) return;
+                previewFile(f.id);
+            });
+
+            // Individual convert
+            const convertBtn = div.querySelector('.convert-single');
+            if (convertBtn) {
+                convertBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    convertOne(f.id);
                 });
+            }
 
-                // Bind individual downloads
-                fileList.querySelectorAll('.download-single:not([disabled])').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const f = files.find(x => x.id === btn.dataset.id);
-                        if (f && f.lrcContent) downloadFile(f.lrcContent, f.name.replace(/\.vtt$/i, '.lrc'));
-                    });
+            // Individual download
+            const dlBtn = div.querySelector('.download-single');
+            if (dlBtn) {
+                dlBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const file = files.find(x => x.id === dlBtn.dataset.id);
+                    if (file && file.outputContent) {
+                        const ext = '.' + (file.outputFormat || 'lrc');
+                        const outName = file.name.replace(/\.[^.]+$/, ext);
+                        downloadFile(file.outputContent, outName);
+                    }
                 });
+            }
 
-                // Bind removes
-                fileList.querySelectorAll('.remove-file').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const id = btn.dataset.id;
-                        files = files.filter(x => x.id !== id);
-                        if (previewName.dataset.currentId === id) {
-                            vttInput.value = '';
-                            lrcOutput.value = '';
-                            previewName.textContent = '';
-                            previewName.dataset.currentId = '';
-                        }
-                        renderFileList();
-                        updateButtons();
-                    });
-                });
-
+            // Remove
+            const rmBtn = div.querySelector('.remove-file');
+            rmBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = rmBtn.dataset.id;
+                files = files.filter(x => x.id !== id);
+                if (previewName.dataset.currentId === id) {
+                    subInput.value = '';
+                    lrcOutput.value = '';
+                    previewName.textContent = '';
+                    sourceLabel.textContent = '';
+                    outputLabel.textContent = '';
+                    previewName.dataset.currentId = '';
+                    errorMsg.classList.add('hidden');
+                }
+                renderFileList();
                 updateButtons();
+            });
+
+            fileListEl.appendChild(div);
+        });
+
+        updateButtons();
+    }
+
+    // ─── Preview ────────────────────────────────────────────────────────
+
+    function previewFile(id) {
+        const f = files.find(x => x.id === id);
+        if (!f) return;
+        previewName.textContent = `— ${f.name}`;
+        previewName.dataset.currentId = id;
+        sourceLabel.textContent = `(${FORMAT_NAMES[f.sourceFormat] || '?'})`;
+        subInput.value = f.sourceContent || '';
+
+        if (f.status === 'done' && f.outputContent) {
+            lrcOutput.value = f.outputContent;
+            outputLabel.textContent = `(${FORMAT_NAMES[f.outputFormat] || '?'})`;
+            errorMsg.classList.add('hidden');
+        } else if (f.status === 'error') {
+            lrcOutput.value = '';
+            outputLabel.textContent = '';
+            errorMsg.textContent = f.error || '转换失败';
+            errorMsg.classList.remove('hidden');
+        } else {
+            lrcOutput.value = '（尚未转换）';
+            outputLabel.textContent = '';
+            errorMsg.classList.add('hidden');
+        }
+    }
+
+    // ─── Add files ──────────────────────────────────────────────────────
+
+    function addFiles(fileListObj) {
+        const fileArray = Array.from(fileListObj);
+        const added = [];
+        let readsDone = 0;
+        const total = fileArray.length;
+
+        if (total === 0) return;
+
+        const readNext = (i) => {
+            if (i >= total) {
+                if (added.length) {
+                    files.push(...added);
+                    renderFileList();
+                    previewFile(added[0].id);
+                }
+                updateButtons();
+                return;
             }
 
-            // ── Preview ──
-            function previewFile(id) {
-                const f = files.find(x => x.id === id);
-                if (!f) return;
-                previewName.textContent = `— ${f.name}`;
-                previewName.dataset.currentId = id;
-                vttInput.value = f.vttContent || '';
-                lrcOutput.value = f.lrcContent || '（尚未转换）';
-                errorMsg.classList.add('hidden');
-            }
+            const file = fileArray[i];
+            const ext = file.name.toLowerCase().replace(/.*\./, '');
+            const fmt = EXT_TO_FORMAT[ext] || null;
 
-            // ── Add files ──
-            function addFiles(fileListObj) {
-                const added = [];
-                const readNext = (i) => {
-                    if (i >= fileListObj.length) {
-                        if (added.length) {
-                            files.push(...added);
-                            renderFileList();
-                            previewFile(added[0].id);
-                        }
-                        updateButtons();
-                        return;
-                    }
-                    const file = fileListObj[i];
-                    if (!file.name.toLowerCase().endsWith('.vtt')) {
-                        readNext(i + 1);
-                        return;
-                    }
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
+            if (!fmt) {
+                // Unsupported extension — try reading and sniffing content
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    const sniffed = sniffFormat(content);
+                    if (sniffed) {
                         added.push({
                             id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
                             name: file.name,
-                            vttContent: e.target.result,
-                            lrcContent: null,
+                            sourceContent: content,
+                            sourceFormat: sniffed,
+                            outputContent: null,
+                            outputFormat: null,
                             status: 'pending',
+                            error: null,
                         });
-                        readNext(i + 1);
-                    };
-                    reader.onerror = () => readNext(i + 1);
-                    reader.readAsText(file, 'utf-8');
+                    }
+                    readNext(i + 1);
                 };
-                readNext(0);
+                reader.onerror = () => readNext(i + 1);
+                reader.readAsText(file, 'utf-8');
+                return;
             }
 
-            // ── Convert all ──
-            function convertAll() {
-                files.forEach(f => {
-                    if (f.status === 'done') return;
-                    try {
-                        f.lrcContent = convertVTTtoLRC(f.vttContent);
-                        f.status = 'done';
-                    } catch {
-                        f.status = 'error';
-                    }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                added.push({
+                    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                    name: file.name,
+                    sourceContent: e.target.result,
+                    sourceFormat: fmt,
+                    outputContent: null,
+                    outputFormat: null,
+                    status: 'pending',
+                    error: null,
                 });
-                renderFileList();
-                // Refresh preview if current
-                const curId = previewName.dataset.currentId;
-                if (curId) {
-                    const cur = files.find(x => x.id === curId);
-                    if (cur) previewFile(cur.id);
-                }
-                updateButtons();
+                readNext(i + 1);
+            };
+            reader.onerror = () => readNext(i + 1);
+            reader.readAsText(file, 'utf-8');
+        };
+
+        readNext(0);
+    }
+
+    /** Content-based format detection for ambiguous extensions (like .txt) */
+    function sniffFormat(content) {
+        const first200 = content.slice(0, 200).trim();
+
+        // WEBVTT header → VTT
+        if (/^WEBVTT/i.test(first200)) return 'vtt';
+
+        // ASS/SSA headers
+        if (/^\[Script Info\]/im.test(first200)) {
+            if (/\bScriptType:\s*v4\.00\+/i.test(first200)) return 'ass';
+            if (/\bScriptType:\s*v4\.00/i.test(first200)) return 'ssa';
+            // Default to ASS for newer
+            if (/\[V4\+ Styles\]/i.test(first200)) return 'ass';
+            if (/\[V4 Styles\]/i.test(first200)) return 'ssa';
+            if (/\[Events\]/i.test(first200)) return 'ass';
+        }
+
+        // LRC: [MM:SS.xx] pattern
+        if (/\[\d{2}:\d{2}[\.:]\d{2,3}\]/.test(first200)) {
+            return 'lrc';
+        }
+
+        // SRT: number + timestamp with comma decimal
+        if (/^\d+\s*\n\s*\d{2}:\d{2}:\d{2},\d{3}\s*-->/m.test(first200)) return 'srt';
+
+        // SBV: H:MM:SS.mmm,H:MM:SS.mmm (comma between times, no arrow, or with)
+        const sbvLine = first200.split('\n')[0].trim();
+        if (/^\d:\d{2}:\d{2}[.,]\d{3},/.test(sbvLine) || /^\d:\d{2}:\d{2}[.,]\d{3}\s*-->/.test(sbvLine)) {
+            return 'sbv';
+        }
+
+        // VTT: timestamp with decimal period
+        if (/\d{2}:\d{2}:\d{2}\.\d{3}\s*-->/.test(first200)) return 'vtt';
+
+        return null;
+    }
+
+    // ─── Convert all pending files ──────────────────────────────────────
+
+    function convertAll() {
+        let changed = false;
+        const targetFmt = outputFmt.value;
+
+        files.forEach(f => {
+            if (f.status === 'done' && f.outputFormat === targetFmt) return;
+            // Re-convert if format changed; convert if pending
+            if (f.status === 'done' && f.outputFormat !== targetFmt) {
+                // already converted to a different format — redo
+            } else if (f.status !== 'pending') {
+                return;
             }
-
-            // ── Download all as ZIP ──
-            async function downloadAllZip() {
-                const zip = new JSZip();
-                let count = 0;
-                files.forEach(f => {
-                    if (f.status === 'done' && f.lrcContent) {
-                        const lrcName = f.name.replace(/\.vtt$/i, '.lrc');
-                        zip.file(lrcName, f.lrcContent);
-                        count++;
-                    }
-                });
-                if (count === 0) return;
-                const blob = await zip.generateAsync({ type: 'blob' });
-                downloadFile(blob, 'lrc_files.zip', 'application/zip');
+            try {
+                f.outputContent = convertToFormat(f.sourceContent, f.sourceFormat, targetFmt);
+                f.outputFormat = targetFmt;
+                f.status = 'done';
+                f.error = null;
+                changed = true;
+            } catch (err) {
+                f.status = 'error';
+                f.error = err.message || '转换失败';
+                changed = true;
             }
-
-            // ── Download helper ──
-            function downloadFile(content, fileName, mimeType) {
-                const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType || 'text/plain;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
-
-            // ── Update buttons ──
-            function updateButtons() {
-                const hasFiles = files.length > 0;
-                const hasPending = files.some(f => f.status === 'pending');
-                const hasDone = files.some(f => f.status === 'done');
-                convertAllBtn.disabled = !hasFiles || !hasPending;
-                downloadAllBtn.disabled = !hasDone;
-                clearBtn.disabled = !hasFiles;
-            }
-
-            // ── Events ──
-
-            // File input change
-            fileInput.addEventListener('change', () => {
-                if (fileInput.files.length) addFiles(fileInput.files);
-                fileInput.value = '';
-            });
-
-            // Drag & drop
-            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-            dropZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('dragover');
-                if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
-            });
-
-            // Convert all
-            convertAllBtn.addEventListener('click', convertAll);
-
-            // Download all ZIP
-            downloadAllBtn.addEventListener('click', downloadAllZip);
-
-            // Clear all
-            clearBtn.addEventListener('click', () => {
-                if (files.length === 0) return;
-                if (!confirm(`确定要清空 ${files.length} 个文件吗？`)) return;
-                files = [];
-                vttInput.value = '';
-                lrcOutput.value = '';
-                previewName.textContent = '';
-                previewName.dataset.currentId = '';
-                renderFileList();
-                updateButtons();
-            });
-
-            // Keyboard shortcut: Ctrl+Enter to convert all
-            document.addEventListener('keydown', (e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                    e.preventDefault();
-                    if (!convertAllBtn.disabled) convertAll();
-                }
-            });
         });
-    </script>
+
+        if (changed) {
+            renderFileList();
+            const curId = previewName.dataset.currentId;
+            if (curId) {
+                const cur = files.find(x => x.id === curId);
+                if (cur) previewFile(cur.id);
+            }
+            updateButtons();
+        }
+    }
+
+    // ─── Convert single file ────────────────────────────────────────────
+
+    function convertOne(id) {
+        const f = files.find(x => x.id === id);
+        if (!f) return;
+
+        const targetFmt = outputFmt.value;
+        try {
+            f.outputContent = convertToFormat(f.sourceContent, f.sourceFormat, targetFmt);
+            f.outputFormat = targetFmt;
+            f.status = 'done';
+            f.error = null;
+        } catch (err) {
+            f.status = 'error';
+            f.error = err.message || '转换失败';
+        }
+
+        renderFileList();
+        if (previewName.dataset.currentId === id) previewFile(id);
+        updateButtons();
+    }
+
+    // ─── Download all as ZIP ────────────────────────────────────────────
+
+    async function downloadAllZip() {
+        const zip = new JSZip();
+        let count = 0;
+
+        files.forEach(f => {
+            if (f.status === 'done' && f.outputContent) {
+                const ext = '.' + (f.outputFormat || 'lrc');
+                const outName = f.name.replace(/\.[^.]+$/, ext);
+                zip.file(outName, f.outputContent);
+                count++;
+            }
+        });
+
+        if (count === 0) return;
+        const blob = await zip.generateAsync({ type: 'blob' });
+        downloadFile(blob, 'subtitles.zip', 'application/zip');
+    }
+
+    // ─── Download helper ────────────────────────────────────────────────
+
+    function downloadFile(content, fileName, mimeType) {
+        const blob = content instanceof Blob
+            ? content
+            : new Blob([content], { type: mimeType || 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // ─── Update buttons ─────────────────────────────────────────────────
+
+    function updateButtons() {
+        const hasFiles = files.length > 0;
+        const hasPending = files.some(f => f.status === 'pending' || (f.status === 'done' && f.outputFormat !== outputFmt.value));
+        const hasDone = files.some(f => f.status === 'done');
+        // Has pending means actually needs conversion (pending OR done with wrong format)
+        const needsConvert = files.some(f => {
+            if (f.status === 'pending') return true;
+            if (f.status === 'done' && f.outputFormat !== outputFmt.value) return true;
+            return false;
+        });
+        convertAllBtn.disabled = !hasFiles || !needsConvert;
+        downloadAllBtn.disabled = !hasDone;
+        clearBtn.disabled = !hasFiles;
+    }
+
+    // ─── Reset done status when output format changes ───────────────────
+
+    outputFmt.addEventListener('change', () => {
+        // Mark files as pending if their output format doesn't match
+        files.forEach(f => {
+            if (f.status === 'done' && f.outputFormat !== outputFmt.value) {
+                f.status = 'pending';
+                f.outputContent = null;
+            }
+        });
+        renderFileList();
+        const curId = previewName.dataset.currentId;
+        if (curId) {
+            // Re-preview if current file reset
+            const cur = files.find(x => x.id === curId);
+            if (cur && cur.status === 'pending') {
+                lrcOutput.value = '（尚未转换）';
+                outputLabel.textContent = '';
+                errorMsg.classList.add('hidden');
+            } else if (cur) {
+                previewFile(cur.id);
+            }
+        }
+        updateButtons();
+    });
+
+    // ─── Events ─────────────────────────────────────────────────────────
+
+    // File input
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length) addFiles(fileInput.files);
+        fileInput.value = '';
+    });
+
+    // Drag & drop
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+    });
+
+    // Convert all
+    convertAllBtn.addEventListener('click', convertAll);
+
+    // Download all ZIP
+    downloadAllBtn.addEventListener('click', downloadAllZip);
+
+    // Clear all
+    clearBtn.addEventListener('click', () => {
+        if (files.length === 0) return;
+        if (!confirm(`确定要清空 ${files.length} 个文件吗？`)) return;
+        files = [];
+        subInput.value = '';
+        lrcOutput.value = '';
+        previewName.textContent = '';
+        sourceLabel.textContent = '';
+        outputLabel.textContent = '';
+        previewName.dataset.currentId = '';
+        errorMsg.classList.add('hidden');
+        renderFileList();
+        updateButtons();
+    });
+
+    // Keyboard shortcut: Ctrl+Enter
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            if (!convertAllBtn.disabled) convertAll();
+        }
+    });
+
+    // Initial render
+    renderFileList();
+});
+</script>
 </body>
 </html>
