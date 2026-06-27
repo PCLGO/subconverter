@@ -83,11 +83,10 @@
 <body class="min-h-screen flex items-start justify-center p-4 pt-8">
 
 <div id="app" class="w-full max-w-5xl bg-white rounded-xl shadow-2xl p-6 md:p-8">
-    <!-- Language switcher -->
+    <!-- Language toggle -->
     <div class="flex justify-end mb-2">
         <button id="langSwitch"
-                class="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-300 text-gray-500 hover:border-violet-400 hover:text-violet-600 transition"
-                data-i18n="langSwitch">English</button>
+                class="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-300 text-gray-500 hover:border-violet-400 hover:text-violet-600 transition">English</button>
     </div>
 
     <h1 class="text-3xl font-extrabold text-gray-800 mb-1 text-center" data-i18n="title">通用字幕格式转换工具</h1>
@@ -186,69 +185,68 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const LANG = {
     zh: {
-        title: '通用字幕格式转换工具',
-        subtitle: '批量转换 <strong>VTT · SRT · ASS · SSA · LRC · SBV</strong> 任意互转，一键打包下载',
+        title: '通用字幕转换工具',
+        subtitle: '<strong>VTT · SRT · ASS · SSA · LRC · SBV</strong> 任意互转',
         langSwitch: 'English',
-        dropText: '拖拽字幕文件到此处，或点击选择',
-        dropHint: '支持 VTT · SRT · ASS · SSA · LRC · SBV 格式，可多选',
-        outputLabel: '输出格式：',
+        dropText: '拖拽或点击选择字幕文件',
+        dropHint: '支持 VTT · SRT · ASS · SSA · LRC · SBV，可多选',
+        outputLabel: '输出：',
         convertAll: '🔄 全部转换',
-        downloadAll: '📦 打包下载 (.zip)',
-        clearAll: '🗑 清空列表',
-        emptyHint: '还没有添加任何文件',
-        sourceTitle: '字幕原文',
-        resultTitle: '转换结果',
-        sourcePlaceholder: '点击文件列表中的文件查看字幕内容...',
-        resultPlaceholder: '转换后的内容将在此处显示...',
+        downloadAll: '📦 打包下载',
+        clearAll: '🗑 清空',
+        emptyHint: '暂无文件',
+        sourceTitle: '原文',
+        resultTitle: '结果',
+        sourcePlaceholder: '点击文件预览...',
+        resultPlaceholder: '转换结果...',
         statusPending: '待转换',
         statusDone: '✓ 已转换',
         statusError: '✗ 错误',
-        notConverted: '（尚未转换）',
+        notConverted: '（未转换）',
         convertBtn: '转换',
         downloadBtn: '下载',
-        removeBtn: '移除此文件',
+        removeBtn: '移除',
         fileCount: '共 {n} 个文件',
-        confirmClear: '确定要清空 {n} 个文件吗？',
+        confirmClear: '清空 {n} 个文件？',
         convertFailed: '转换失败',
         unsupportedInput: '不支持的输入格式: {fmt}',
         unsupportedOutput: '不支持的输出格式: {fmt}',
         fmtLrc: 'LRC (歌词)',
         fmtSrt: 'SRT (SubRip)',
         fmtVtt: 'VTT (WebVTT)',
-        fmtAss: 'ASS (高级字幕)',
+        fmtAss: 'ASS (高级)',
         fmtSsa: 'SSA (SubStation)',
         fmtSbv: 'SBV (YouTube)',
         infoTitle: '说明',
         infoList: [
-            '<strong>支持格式</strong>：输入 VTT · SRT · ASS · SSA · LRC · SBV，输出 LRC · SRT · VTT · ASS · SSA · SBV，任意互转',
-            '<strong>批量处理</strong>：同时添加多文件，选择输出格式，一键全部转换 + ZIP 打包下载',
-            '<strong>格式检测</strong>：基于文件扩展名自动识别输入格式（.vtt / .srt / .ass / .ssa / .lrc / .sbv）',
-            '<strong>时间戳</strong>：所有格式自动归一化处理，标准 LRC <code>[MM:SS.xx]</code> / SRT <code>HH:MM:SS,mmm</code>',
-            '<strong>快捷键</strong>：<kbd>Ctrl+Enter</kbd> 快速全部转换',
+            '支持 VTT · SRT · ASS · SSA · LRC · SBV 任意互转',
+            '批量上传，一键全部转换 + ZIP 打包下载',
+            '根据文件扩展名自动识别格式，.txt 文件自动嗅探',
+            '快捷键 <kbd>Ctrl+Enter</kbd> 快速转换',
         ],
     },
     en: {
         title: 'Universal Subtitle Converter',
-        subtitle: 'Convert between <strong>VTT · SRT · ASS · SSA · LRC · SBV</strong> — batch processing with one-click ZIP download',
+        subtitle: 'Convert between <strong>VTT · SRT · ASS · SSA · LRC · SBV</strong>',
         langSwitch: '中文',
-        dropText: 'Drop subtitle files here, or click to select',
-        dropHint: 'Supports VTT · SRT · ASS · SSA · LRC · SBV, multiple files allowed',
-        outputLabel: 'Output format:',
+        dropText: 'Drop or click to select subtitle files',
+        dropHint: 'Supports VTT · SRT · ASS · SSA · LRC · SBV, multiple files',
+        outputLabel: 'Output:',
         convertAll: '🔄 Convert All',
         downloadAll: '📦 Download ZIP',
-        clearAll: '🗑 Clear All',
-        emptyHint: 'No files added yet',
+        clearAll: '🗑 Clear',
+        emptyHint: 'No files',
         sourceTitle: 'Source',
         resultTitle: 'Result',
-        sourcePlaceholder: 'Click a file in the list to preview its content...',
-        resultPlaceholder: 'Converted content will appear here...',
+        sourcePlaceholder: 'Click a file to preview...',
+        resultPlaceholder: 'Conversion result...',
         statusPending: 'Pending',
         statusDone: '✓ Converted',
         statusError: '✗ Error',
-        notConverted: '(Not converted yet)',
+        notConverted: '(Not converted)',
         convertBtn: 'Convert',
         downloadBtn: 'Download',
-        removeBtn: 'Remove this file',
+        removeBtn: 'Remove',
         fileCount: '{n} file(s)',
         confirmClear: 'Clear {n} file(s)?',
         convertFailed: 'Conversion failed',
@@ -262,20 +260,17 @@ const LANG = {
         fmtSbv: 'SBV (YouTube)',
         infoTitle: 'About',
         infoList: [
-            '<strong>Formats</strong>: Input VTT · SRT · ASS · SSA · LRC · SBV, output LRC · SRT · VTT · ASS · SSA · SBV — any direction',
-            '<strong>Batch</strong>: Add multiple files, select output format, convert all at once + ZIP download',
-            '<strong>Detection</strong>: Automatic format recognition from file extension (.vtt / .srt / .ass / .ssa / .lrc / .sbv)',
-            '<strong>Timestamps</strong>: Standardized across formats — LRC <code>[MM:SS.xx]</code> / SRT <code>HH:MM:SS,mmm</code>',
-            '<strong>Shortcut</strong>: <kbd>Ctrl+Enter</kbd> to convert all at once',
+            'Convert between VTT · SRT · ASS · SSA · LRC · SBV, any direction',
+            'Batch upload, one-click convert all + ZIP download',
+            'Auto-detect format from file extension, .txt files sniffed by content',
+            'Shortcut <kbd>Ctrl+Enter</kbd> to convert all',
         ],
     },
 };
 
 let currentLang = localStorage.getItem('subconverter-lang');
 if (!currentLang) {
-    // Auto-detect from browser language
-    const browserLang = (navigator.language || '').toLowerCase();
-    currentLang = browserLang.startsWith('zh') ? 'zh' : 'en';
+    currentLang = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
     localStorage.setItem('subconverter-lang', currentLang);
 }
 
@@ -289,32 +284,25 @@ function t(key, replacements = {}) {
 }
 
 function applyLanguage() {
-    // Update html lang attribute
     document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en';
 
-    // Static text via data-i18n
     document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (el.tagName === 'OPTION') {
-            el.innerHTML = t(key);
-        } else {
-            el.innerHTML = t(key);
-        }
+        el.innerHTML = t(el.getAttribute('data-i18n'));
     });
 
-    // Placeholders via data-i18n-placeholder
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-        const key = el.getAttribute('data-i18n-placeholder');
-        el.placeholder = t(key);
+        el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
     });
 
-    // Info list
     const infoList = document.getElementById('infoList');
     if (infoList) {
         infoList.innerHTML = t('infoList').map(item => `<li>${item}</li>`).join('');
     }
 
-    // Save preference
+    // Update toggle button text to show target language
+    const btn = document.getElementById('langSwitch');
+    if (btn) btn.textContent = t('langSwitch');
+
     localStorage.setItem('subconverter-lang', currentLang);
 }
 
@@ -351,14 +339,9 @@ document.addEventListener('DOMContentLoaded', () => {
     langSwitch.addEventListener('click', () => {
         currentLang = currentLang === 'zh' ? 'en' : 'zh';
         applyLanguage();
-
-        // Re-translate dynamic elements
         renderFileList();
-
-        // Re-translate the clear button text (has data-i18n but re-render covers it)
         updateButtons();
 
-        // Refresh preview if something is showing
         const curId = previewName.dataset.currentId;
         if (curId) {
             const cur = files.find(x => x.id === curId);
