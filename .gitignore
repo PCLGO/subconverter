@@ -1,4 +1,7 @@
-# Local test assets
+# Test files (local only, not uploaded)
+test/
+
+# Local assets
 fixed/
 
 # OS files
